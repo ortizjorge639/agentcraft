@@ -1,0 +1,15 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "agentcraft-studio",
+  "version": "0.2.0",
+  "description": "Deterministic startup command for GitHub Copilot-backed AgentCraft studio sessions.",
+  "author": {
+    "name": "AgentCraft contributors"
+  },
+  "license": "MIT",
+  "keywords": [
+    "agentcraft",
+    "copilot",
+    "minecraft"
+  ]
+}

@@ -40,6 +40,37 @@ Integration uses `@github/copilot-sdk` **1.0.16**, with its bundled CLI **1.0.90
 Git, Java 25, and an authenticated account entitled to Copilot are required. Authenticate using
 `copilot /login` or `COPILOT_GITHUB_TOKEN` before launching.
 
+For normal Windows use against a trusted repository, the validated starter requires an explicit
+test command, checks the target's Git state and runtime prerequisites, and launches a bounded
+one-worker session:
+
+```powershell
+tools\start-copilot.ps1 -Repo C:\code\my-project -Ci "npm test" -Profile my-project-01
+```
+
+Use `-Login` for interactive authentication and `-FullPreflight` after setup or dependency
+changes. See [the tools runbook](tools/README.md#recommended-copilot-startup).
+
+Copilot CLI users can install the repository plugin once and start through the matching slash
+command:
+
+```powershell
+copilot plugin marketplace add ./
+copilot plugin install agentcraft-studio@agentcraft
+copilot
+```
+
+```text
+/agentcraft-start
+```
+
+The bare command walks through repository, CI, and launch-mode onboarding. To
+skip onboarding, provide the required inputs directly:
+
+```text
+/agentcraft-start repo="C:\code\my-project" ci="npm test" profile="my-project-01"
+```
+
 ```sh
 # macOS (launches the matching Fabric development client)
 node tools/mac.mjs launch --backend copilot --repo /path/to/repo

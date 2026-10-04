@@ -28,6 +28,68 @@ Windows PowerShell 5.1+ and Node 22.18+. `launch.ps1` installs the npm dependenc
 first run (`npm ci` in `foreman/` and `tools/`); the Gradle wrapper downloads Gradle, Minecraft
 and Fabric by itself. Java 25 must be installed (Temurin 25: https://adoptium.net).
 
+## Recommended Copilot startup
+
+`start-copilot.ps1` is the fail-closed entry point for normal GitHub Copilot sessions against
+arbitrary trusted repositories. It requires an explicit repository and CI command, verifies the
+target is a clean Git root on a checked-out branch, checks Git, Node 22.18+ and Java 25, derives a
+stable profile when one is not supplied, then delegates to `launch.ps1` with one bounded worker.
+
+```powershell
+copilot /login  # interactive; needed only when the account is not already authenticated
+
+tools\start-copilot.ps1 `
+  -Repo C:\code\my-project `
+  -Ci "npm test" `
+  -Profile my-project-01
+```
+
+From `cmd.exe` or Explorer use `tools\start-copilot.cmd` with the same arguments. Add `-Login` to
+run the interactive login from the starter, `-FullPreflight` on a new or changed AgentCraft
+checkout, `-Dev` for muted/no-focus QA, or `-DryRun` to inspect the launch without starting it.
+Resume with the same home/profile/ports; use a new profile for independent work. Run only one
+Copilot Foreman at a time; the starter refuses a different live profile under the selected home
+while allowing an exact-profile resume. Keep separate profiles for unrelated repositories and
+configure a real verification command (`npm test`, `pytest`, `cargo test`, `go test ./...`,
+`dotnet test`, etc.); the starter never guesses one.
+
+The starter refuses a dirty target because approved merges require a stable base. AgentCraft
+still treats the target as trusted: tests and repository scripts execute on the host, and git
+guards are not an OS sandbox.
+
+### Copilot CLI slash command
+
+Install the repository's AgentCraft Studio plugin once from the AgentCraft repository root:
+
+```powershell
+copilot plugin marketplace add ./
+copilot plugin install agentcraft-studio@agentcraft
+```
+
+Start a new interactive Copilot CLI session from that same root and invoke the command:
+
+```powershell
+copilot
+```
+
+```text
+/agentcraft-start
+```
+
+The bare command asks for the target repository, exact CI command, and launch
+mode one question at a time, then shows the resolved safe defaults before
+starting. For the non-interactive fast path:
+
+```text
+/agentcraft-start repo="C:\code\my-project" ci="npm test"
+```
+
+The command is a thin prompt adapter to `tools\start-copilot.ps1`; it does not duplicate or bypass
+the script's checks. Add `login`, `full-preflight`, `dev`, or `dry-run` as standalone flags, and
+use `/agentcraft-start help` for examples. This path-sourced marketplace loads the plugin from the
+working tree; start a new Copilot session or use `/restart` after editing its files. Once Minecraft
+is ready, the setup CLI session is no longer required and can be closed with `/exit`.
+
 ## Daily use
 
 ```powershell
@@ -107,6 +169,7 @@ Screenshot QA (scene format, anchor contract, judging): [docs/QA.md](../docs/QA.
 | file | |
 | --- | --- |
 | `launch.ps1`, `stop.ps1`, `launch.cmd`, `stop.cmd` | launcher |
+| `start-copilot.ps1`, `start-copilot.cmd` | validated, bounded Copilot session starter |
 | `lib/procs.ps1` | shared PowerShell helpers (run files, process identity, Ctrl+Break, ports) |
 | `lib/bgrun.mjs` | background runner: owns the log files and the hidden console of a background process |
 | `devcli.mjs`, `lib/devclient.mjs` | DevBridge client |
