@@ -6,9 +6,11 @@ export interface RunResult {
   stdout: string;
   stderr: string;
   timedOut: boolean;
+  truncated?: boolean;
 }
 
 export interface RunOptions {
+  signal?: AbortSignal;
   cwd?: string;
   env?: NodeJS.ProcessEnv;
   input?: string;
@@ -147,6 +149,10 @@ export async function killSnapshot(snapshot: ProcEntry[], table?: ProcEntry[]): 
 
 export function run(cmd: string, args: string[], opts: RunOptions = {}): Promise<RunResult> {
   return new Promise((resolve, reject) => {
+    if (opts.signal?.aborted) {
+      reject(new Error('command aborted before start'));
+      return;
+    }
     const child = spawn(cmd, opts.shell ? [] : args, {
       cwd: opts.cwd,
       env: opts.env ?? process.env,
@@ -160,13 +166,21 @@ export function run(cmd: string, args: string[], opts: RunOptions = {}): Promise
     let stdout = '';
     let stderr = '';
     let timedOut = false;
+    let truncated = false;
+    const onAbort = () => killTree(child);
+    opts.signal?.addEventListener('abort', onAbort, { once: true });
+    if (opts.signal?.aborted) onAbort();
     child.stdout!.setEncoding('utf8');
     child.stderr!.setEncoding('utf8');
     child.stdout!.on('data', (d: string) => {
-      if (stdout.length < max) stdout += d;
+      const remaining = max - stdout.length;
+      if (d.length > remaining) truncated = true;
+      stdout += d.slice(0, remaining);
     });
     child.stderr!.on('data', (d: string) => {
-      if (stderr.length < max) stderr += d;
+      const remaining = max - stderr.length;
+      if (d.length > remaining) truncated = true;
+      stderr += d.slice(0, remaining);
     });
     let timer: NodeJS.Timeout | undefined;
     if (opts.timeoutMs) {
@@ -176,12 +190,14 @@ export function run(cmd: string, args: string[], opts: RunOptions = {}): Promise
       }, opts.timeoutMs);
     }
     child.on('error', (e) => {
+      opts.signal?.removeEventListener('abort', onAbort);
       if (timer) clearTimeout(timer);
       reject(e);
     });
     child.on('close', (code) => {
+      opts.signal?.removeEventListener('abort', onAbort);
       if (timer) clearTimeout(timer);
-      resolve({ code: code ?? (timedOut ? 124 : 1), stdout, stderr, timedOut });
+      resolve({ code: code ?? (timedOut ? 124 : 1), stdout, stderr, timedOut, ...(truncated ? { truncated: true } : {}) });
     });
     if (opts.input !== undefined) child.stdin!.end(opts.input);
     else child.stdin!.end();

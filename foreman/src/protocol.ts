@@ -61,7 +61,7 @@ export type NotifyLevel = z.infer<typeof NotifyLevel>;
 export const WorktreeStatus = z.enum(['active', 'merged', 'abandoned']);
 export type WorktreeStatus = z.infer<typeof WorktreeStatus>;
 
-export const BackendName = z.enum(['sim', 'claude']);
+export const BackendName = z.enum(['sim', 'claude', 'copilot']);
 export type BackendName = z.infer<typeof BackendName>;
 
 export const AuthStatus = z
@@ -116,6 +116,7 @@ export const Task = z.object({
   branch: z.string().optional().describe('git branch, e.g. "agentcraft/kit/t2-tag-parser"'),
   worktree: Id.optional(),
   ci: CiStatus,
+  ciRevision: z.string().optional().describe('Copilot: fingerprint of the worktree verified by executed passing tests'),
   blockedReason: z.string().optional(),
   summary: z.string().optional().describe('worker/lead summary of the result'),
   createdBy: Id.describe('agent id or "user"'),

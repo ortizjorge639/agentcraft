@@ -2,7 +2,7 @@
 // ever selected, a reused pid is never treated as ours, and the real process table is readable.
 import { spawn } from 'node:child_process';
 import { describe, expect, it } from 'vitest';
-import { descendantsOf, killSnapshot, orphansOf, processTable, type ProcEntry } from '../src/util/proc.js';
+import { descendantsOf, killSnapshot, orphansOf, processTable, runShell, type ProcEntry } from '../src/util/proc.js';
 
 const e = (pid: number, ppid: number, createdMs: number): ProcEntry => ({ pid, ppid, created: String(createdMs), createdMs });
 
@@ -40,5 +40,19 @@ describe('process tree helpers', () => {
     const exited = new Promise((r) => child.once('exit', r));
     expect(await killSnapshot([entry], now)).toEqual([child.pid]);
     await exited;
+  });
+
+  it('aborts a running platform shell rather than leaving its command alive', async () => {
+    const abort = new AbortController();
+    const timer = setTimeout(() => abort.abort(), 500);
+    const started = Date.now();
+    try {
+      const result = await runShell(`"${process.execPath}" -e "setInterval(() => {}, 1000)"`, {
+        signal: abort.signal, timeoutMs: 10_000,
+      });
+      expect(result.code).not.toBe(0);
+      expect(result.timedOut).toBe(false);
+      expect(Date.now() - started).toBeLessThan(8000);
+    } finally { clearTimeout(timer); }
   });
 });

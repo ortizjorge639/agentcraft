@@ -1,6 +1,6 @@
 # AgentCraft Foreman
 
-The Foreman is the brain of AgentCraft: a Node 22 + TypeScript service that runs a team of Claude
+The Foreman is the brain of AgentCraft: a Node 22.18+ and TypeScript service that runs a team of Claude or Copilot
 agents (one lead, up to five workers) on a real git repo and streams everything to the Minecraft
 mod over a WebSocket. The game is only a view. The Foreman owns all state, keeps working while
 Minecraft is closed, and survives restarts.
@@ -20,6 +20,7 @@ Minecraft is closed, and survives restarts.
      |- Notifier      src/notifier.ts    desktop notification + console bell when you are needed
      |- Store         src/store.ts       atomic JSON state + JSONL logs under AGENTCRAFT_HOME
      `- Backend       claude: src/agents/claude/  (Claude Agent SDK sessions)
+                      copilot: src/agents/copilot/ (experimental GitHub Copilot SDK)
                       sim:    src/agents/sim/     (deterministic scripted team, real git)
 ```
 
@@ -33,6 +34,9 @@ npm install
 npm run start -- --backend claude --repo C:\path\to\your\repo
 # personal use only: your local `claude` CLI login instead of an API key
 npm run start -- --backend claude --repo C:\path\to\your\repo --use-claude-login
+
+# Copilot: local CLI login or COPILOT_GITHUB_TOKEN, separate profile
+npm run start -- --backend copilot --repo /path/to/repo --workers kit --max-concurrent 1 --ci "npm test"
 
 # simulated team on a fresh sandbox repo (no API calls) - for demos and screenshot QA
 npm run start -- --backend sim --reset --speed 2
@@ -71,7 +75,7 @@ most ~100 ms of state, and interrupted agent turns resume on the next start.
 
 | flag / env | default | |
 | --- | --- | --- |
-| `--backend sim\|claude` / `AGENTCRAFT_BACKEND` | `claude` | |
+| `--backend sim\|claude\|copilot` / `AGENTCRAFT_BACKEND` | `claude` | Copilot is experimental |
 | `--port` / `AGENTCRAFT_PORT` | `7878` | WebSocket port (127.0.0.1 only) |
 | `--home` / `AGENTCRAFT_HOME` | `~/.agentcraft` | state root |
 | `--user-name` / `AGENTCRAFT_USER_NAME` / config `userName` | OS user name | how the agents address you; sent to the mod in `foreman.status` |
@@ -79,19 +83,88 @@ most ~100 ms of state, and interrupted agent turns resume on the next start.
 | `--repo <path>[,<path>]` | | register repos at start (sim: a fresh `sandbox/sim-demo`) |
 | `--goal "<text>"` | | submit a goal right away |
 | `--reset` | | wipe this profile first |
-| `--notify` / `--no-notify` / `AGENTCRAFT_NOTIFY` | on for claude, off for sim | Windows or macOS notifications |
+| `--notify` / `--no-notify` / `AGENTCRAFT_NOTIFY` | on for real backends, off for sim | Windows or macOS notifications |
 | `--toast-silent` | | toast without sound |
-| `--model`, `--lead-model`, `--worker-model` | lead `opus`, workers `sonnet` | any model id/alias the CLI accepts |
-| `--effort low..max` | `medium` | |
+| `--model`, `--lead-model`, `--worker-model` | Claude: `opus`/`sonnet`; Copilot: runtime-selected | provider-available model id |
+| `--effort low..max` | `medium` | Claude only |
 | `--workers 3` or `--workers kit,wren` | `juniper,kit,wren` | team (others stay "off shift") |
 | `--max-concurrent` | `3` | workers running at once |
-| `--max-turns`, `--max-budget <usd>` | 40 lead / 80 worker, none | per turn caps |
+| `--max-turns`, `--max-budget <usd>` | 40 lead / 80 worker, none | USD budget is Claude only |
 | `--ci "<cmd>"` | detected (`npm test`, `cargo test`, ...) | run after each task |
 | `--no-lead-review` | | merge decisions go to you without a lead review turn |
 | `--repo-poll-ms` | `10000` | how often checkouts are checked for head/dirty changes |
 | `--merge-style merge\|squash` / `AGENTCRAFT_MERGE_STYLE` | `merge` | approved merges: a merge commit that keeps the agents' commits, or one squashed commit (see Safety guarantees) |
-| `--no-sign-merges` / `AGENTCRAFT_SIGN_MERGES=0` | signed if your git config signs (claude) | never sign approved merge commits; the sim never signs |
+| `--no-sign-merges` / `AGENTCRAFT_SIGN_MERGES=0` | signed if your git config signs (real backends) | never sign approved merge commits; the sim never signs |
 | sim: `--speed`, `--seed`, `--autostart`, `--showcase [late]`, `--auto-answer`, `--no-ambient` | | |
+| copilot: `--copilot-cli <path>` | bundled CLI | override only with a compatible CLI |
+
+### Copilot runtime and confidence
+
+Copilot shares the team scheduler and provider-neutral domain tools with Claude. A dedicated,
+owned Node child hosts the SDK and bundled CLI; validated IPC routes every tool back to the
+Foreman. Sessions use empty mode with an explicit custom-tool allowlist. Native tools, MCP
+discovery, file hooks, skills and user custom instructions are disabled; native permission
+requests are rejected rather than automatically approved. The lead gets Read/Glob/Grep; only
+workers get Write/Edit/Bash. Bash is a platform shell command (`cmd.exe` on Windows), not a
+promise that POSIX commands work unchanged there.
+
+Cancellation drains host tool calls as well as the worker process. Unverifiable process cleanup
+blocks Copilot reuse/hand-off instead of treating a cleanup warning as success. Shell tools do
+not inherit Copilot tokens or arbitrary host environment secrets.
+
+The runtime sets an isolated per-profile/per-agent session directory. Provider tags prevent
+Claude/Copilot session mixing; durable domain-tool receipts deduplicate successful replays,
+including concurrent repeats. This is not crash-atomic exactly-once execution across an external
+side effect and the receipt write. Keep repositories trusted: git guards are not an OS sandbox.
+
+Copilot models default to the runtime's choice; `--model`, `--lead-model` and `--worker-model`
+accept account-available IDs. Claude `--effort`, `--lead-effort`, `--max-budget` and
+`--use-claude-login` are rejected for Copilot. Subscription/request usage is not USD; cost stays
+unknown. Concurrency and turn caps bound work, not account charges.
+
+For Copilot, tests must actually execute and pass. Missing tests or failed CI after the bounded
+repair attempt block the task, even with `--no-lead-review`. A persisted SHA-256 fingerprint binds
+verification to the current base commit, HEAD, the tracked diff and non-ignored untracked files (symlinks hash their target
+text). Changes during testing or before merge invalidate approval. Ignored files, environment,
+and external services are not covered. The worktree must include the current base commit;
+parallel merges advancing the base require integration and another test/review cycle. Oversized
+Git output is refused instead of hashing a truncated diff.
+
+`npm run check` covers deterministic regressions; `npm run test:sdk` opt-in checks actual
+SDK custom-tool registration, denial of native tools and failure propagation **without inference**.
+The bundled runtime does not write a resumable transcript for a tools-only session, even after
+explicit save; therefore that smoke test cannot establish live session recovery. A separate
+authorized live Mac canary passed inference, pause/resume and Foreman-instance restart recovery.
+Native Windows launch/process cleanup, in-game acceptance and repeated canaries remain release
+gates. A single success is not a reliability estimate; no 30-run canary series has been performed.
+
+Observed local evidence for this implementation (macOS, Node 26.7.0):
+
+| Gate | Result |
+| --- | --- |
+| `npm run check` at repo root | Foreman: 510 passed, 1 opt-in SDK test skipped; tools: 13 passed, 1 native Windows test skipped; typecheck and generated protocol docs passed |
+| `npm run test:sdk` | 1 real SDK/runtime host-tool contract test passed, no model request |
+| Production `CopilotRuntime.checkAuth()` | Bundled CLI 1.0.90, protocol 3, authenticated metadata preflight passed |
+| Java 25 `gradlew --no-daemon build` | Mod built; no Java test sources exist |
+| macOS/Windows/Linux CI matrix | Added locally; not executed on GitHub |
+| Live Mac canary (2026-10-03 local time) | One goal/worker passed: real edits, 14 repo tests, independent feature oracle, pause/resume, restart at a question, lead review and approved merge over WebSocket |
+| Game UI and native Windows acceptance | Not executed; experimental readiness only |
+
+The live goal added `renameNote` and focused tests to the zero-dependency pocket-notes sandbox.
+Both source content and base HEAD stayed unchanged until the QA client explicitly approved the
+merge. The worker's provider session ID survived pause/resume and the Foreman-instance restart.
+The final merged checkout passed all 14 tests plus an independent oracle for trimming, preserved
+metadata, input immutability, and missing-id/empty-text rejection. This was protocol-level QA:
+the approval came from a test client, not a person clicking in Minecraft. No live permission
+prompt happened in this canary; denial remains covered by deterministic/SDK contract checks.
+
+For live acceptance, use a trusted disposable repo and one worker first. Exercise a successful
+goal, a denied write/command, missing/failing tests, pause/resume, Foreman restart during a
+question, cancellation, and a base advanced by another approved task. Then run two workers on
+independent tasks and verify each merged result against the latest base. Record task outcomes,
+test output, approval/commit IDs, recovery behavior, runtime versions and account usage without
+tokens. Expand to representative repeated canaries only with an explicit usage budget; 30
+successes would be useful evidence, not a demonstrated 99% reliability guarantee.
 
 `<home>/config.json` can hold the same settings (`{"backend":"claude","claude":{"workers":["kit","wren"]}}`).
 While running, `<home>/<profile>/foreman.json` records `{pid, port, host, backend, profile, version, startedAt}`

@@ -78,12 +78,12 @@ export async function gitConfigGet(cwd: string, key: string, type?: 'bool'): Pro
 }
 
 /** The placeholder git identity of an agent ("AgentCraft Kit <kit@agentcraft.local>"); 'user' -> "AgentCraft". */
-export function agentGitIdentity(agentId: string): NodeJS.ProcessEnv {
+export function agentGitIdentity(agentId: string): Record<string, string> {
   const name = agentId === 'user' ? 'AgentCraft' : `AgentCraft ${agentId[0]!.toUpperCase()}${agentId.slice(1)}`;
   return identityEnv(name, `${agentId}@agentcraft.local`);
 }
 
-export function identityEnv(name: string, email: string): NodeJS.ProcessEnv {
+export function identityEnv(name: string, email: string): Record<string, string> {
   return {
     GIT_AUTHOR_NAME: name,
     GIT_AUTHOR_EMAIL: email,

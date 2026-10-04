@@ -35,6 +35,7 @@ export interface TaskPatch {
   branch?: string;
   worktree?: string;
   ci?: CiStatus;
+  ciRevision?: string | null;
   summary?: string;
   blockedReason?: string | null;
   repoId?: string;
@@ -122,6 +123,8 @@ export class TaskGraph {
     if (patch.branch !== undefined) t.branch = patch.branch;
     if (patch.worktree !== undefined) t.worktree = patch.worktree;
     if (patch.ci !== undefined) t.ci = patch.ci;
+    if (patch.ciRevision === null) delete t.ciRevision;
+    else if (patch.ciRevision !== undefined) t.ciRevision = patch.ciRevision;
     if (patch.summary !== undefined) t.summary = patch.summary;
     if (patch.repoId !== undefined) t.repoId = patch.repoId;
     if (patch.blockedReason !== undefined) {

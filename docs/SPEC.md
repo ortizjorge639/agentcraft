@@ -1,12 +1,12 @@
 # AgentCraft — Spec
 
-Minecraft as a spatial UI for real, multi-agent Claude work. The user should be able to use this
+Minecraft as a spatial UI for real, multi-agent coding work (Claude or experimental Copilot). The user should be able to use this
 **for their actual daily work**: practicality is a hard requirement, equal to the visual bar.
 
 ## North star
 
 The user launches one command, walks into their HQ, types a goal ("add OAuth to life-tracker"),
-and watches a team of Claude agents split it into tasks, work in real git worktrees of a real
+and watches a team of agents split it into tasks, work in real git worktrees of a real
 repo, talk to each other, show progress physically, and come to the user for decisions. The user
 can review diffs, approve merges, and steer agents without ever leaving the game — and nothing
 of value is lost if the game closes, because the game is only a view.
@@ -14,9 +14,9 @@ of value is lost if the game closes, because the game is only a view.
 ## Architecture
 
 ```
-Minecraft 26.3 (Fabric mod "agentcraft", Java 25)          Foreman (Node 22 + TypeScript)
- ├─ integrated server side: entities, blocks, HQ builder <-WS-> ├─ AgentManager (Claude Agent SDK sessions)
- ├─ client side: screens, renderers, HUD, keybinds           │   backends: "claude" (real) | "sim" (scripted)
+Minecraft 26.3 (Fabric mod "agentcraft", Java 25)          Foreman (Node 22.18+ + TypeScript)
+ ├─ integrated server side: entities, blocks, HQ builder <-WS-> ├─ Shared team runner + provider SDK adapters
+ ├─ client side: screens, renderers, HUD, keybinds           │   backends: "claude" | "copilot" (experimental) | "sim"
  └─ DevBridge: camera / screenshot / scene control           ├─ TaskGraph (persisted JSON)
                                                              ├─ MessageBus (agent<->agent, agent<->user)
                                                              ├─ Memory (markdown files, shared + per-agent)
@@ -33,6 +33,12 @@ Minecraft 26.3 (Fabric mod "agentcraft", Java 25)          Foreman (Node 22 + Ty
   (integrated-server side) connects as client, auto-reconnects with backoff. JSON messages, one per frame.
 - Single launch: `tools/launch.ps1` starts the Foreman (if not running) then `gradlew runClient`
   with quick-play into the HQ world.
+- Copilot: same-machine Mac/Windows Foreman, owned SDK/CLI processes and Minecraft; remote
+  inference, no cross-device execution bridge. Provider-neutral scheduling and domain tools;
+  explicit human merge decisions remain mandatory. Tests must execute and pass against an
+  unchanged worktree, and approval rechecks its verification fingerprint. Separate provider
+  profiles, no invented USD accounting, no implicit native-tool approval. Live-model recovery,
+  native Windows and in-game acceptance are not established by local deterministic tests.
 
 ## Protocol (v1) — source of truth is `foreman/src/protocol.ts`, mirrored in `mod/.../protocol/`
 

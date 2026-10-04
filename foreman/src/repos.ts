@@ -15,6 +15,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import type { Ctx } from './context.js';
 import { parseUnifiedDiff, type ParsedDiff } from './diff.js';
 import type { CiStatus, Decision, Repo, Worktree } from './protocol.js';
@@ -51,6 +52,9 @@ export interface MergeResult {
 }
 
 export interface TestResult {
+  executed: boolean;
+  revision?: string;
+  changedDuringRun?: boolean;
   pass: boolean;
   code: number;
   command: string;
@@ -69,7 +73,7 @@ export function parseTestOutput(text: string): { failures: string[]; summary?: s
   if (!failures.length) for (const m of text.matchAll(/^\s*(?:✖|×|FAIL)\s+(.+)$/gm)) failures.push(m[1]!.trim());
   const nums: string[] = [];
   for (const k of ['tests', 'pass', 'fail']) {
-    const m = new RegExp(`^# ${k} (\\d+)$`, 'm').exec(text);
+    const m = new RegExp(`^(?:#|ℹ) ${k} (\\d+)$`, 'm').exec(text);
     if (m) nums.push(`${k} ${m[1]}`);
   }
   return { failures: [...new Set(failures)].slice(0, 20), ...(nums.length ? { summary: nums.join(', ') } : {}) };
@@ -707,18 +711,48 @@ export class RepoManager {
   }
 
   /** Run the repo's test command in a worktree (or the main checkout). */
-  async runTests(repoId: string, worktreeId?: string, command?: string, timeoutMs = 300_000): Promise<TestResult> {
+  async runTests(repoId: string, worktreeId?: string, command?: string, timeoutMs = 300_000, opts: { verifyRevision?: boolean } = {}): Promise<TestResult> {
     const r = this.require(repoId);
     const cwd = worktreeId ? this.requireWorktree(repoId, worktreeId).path : r.path;
     const cmd = command ?? this.detectTestCommand(cwd);
-    if (!cmd) return { pass: true, code: 0, command: '(none)', output: 'no test command found', durationMs: 0, failures: [] };
+    if (!cmd) return { executed: false, pass: true, code: 0, command: '(none)', output: 'no test command found', durationMs: 0, failures: [] };
+    const before = opts.verifyRevision ? await this.verificationRevision(repoId, worktreeId) : undefined;
     const t0 = Date.now();
     // the worktree's test scripts are agent-editable code: run them with git transports disabled
     // (a `git push` inside a test script fails) and kill the whole process tree on timeout
     const res = await runShell(cmd, { cwd, timeoutMs, env: withGitSafety(process.env, { CI: '1', FORCE_COLOR: '0', NO_COLOR: '1' }, { ceiling: path.dirname(path.resolve(cwd)) }) });
     const full = `${res.stdout}\n${res.stderr}${res.timedOut ? `\n(timed out after ${Math.round(timeoutMs / 1000)}s; process tree killed)` : ''}`;
     const output = tailLines(full, 40, 3000);
-    return { pass: res.code === 0 && !res.timedOut, code: res.code, command: cmd, output, durationMs: Date.now() - t0, ...parseTestOutput(full) };
+    const revision = opts.verifyRevision ? await this.verificationRevision(repoId, worktreeId) : undefined;
+    return { executed: true, revision, changedDuringRun: before !== revision, pass: res.code === 0 && !res.timedOut, code: res.code, command: cmd, output, durationMs: Date.now() - t0, ...parseTestOutput(full) };
+  }
+
+  async verificationRevision(repoId: string, worktreeId?: string): Promise<string> {
+    const repo = this.require(repoId);
+    const wt = worktreeId ? this.requireWorktree(repoId, worktreeId) : undefined;
+    const cwd = wt?.path ?? repo.path;
+    const hash = createHash('sha256');
+    if (wt) {
+      const base = await gitOut(cwd, ['rev-parse', `${wt.base}^{commit}`]);
+      const included = await git(cwd, ['merge-base', '--is-ancestor', base, 'HEAD'], { allowFail: true });
+      if (included.code !== 0) {
+        if (included.code !== 1) throw new RepoError(`Could not verify base ancestry: ${included.stderr}`, 'refused');
+        throw new RepoError(`Base ${wt.base} advanced; integrate its current commit and rerun tests before merging`, 'conflict');
+      }
+      hash.update(base);
+    }
+    hash.update(await gitOut(cwd, ['rev-parse', 'HEAD']));
+    const diff = await git(cwd, ['diff', '--binary', 'HEAD', '--']);
+    const untracked = await git(cwd, ['ls-files', '--others', '--exclude-standard', '-z']);
+    if (diff.truncated || untracked.truncated) throw new RepoError('Worktree exceeds verification output limits; refusing an incomplete fingerprint', 'refused');
+    hash.update(diff.stdout);
+    const files = untracked.stdout.split('\0').filter(Boolean).sort();
+    for (const name of files) {
+      const file = path.join(cwd, name);
+      hash.update('\0').update(name).update('\0');
+      hash.update(fs.lstatSync(file).isSymbolicLink() ? fs.readlinkSync(file) : fs.readFileSync(file));
+    }
+    return hash.digest('hex');
   }
 
   detectTestCommand(dir: string): string | undefined {

@@ -25,6 +25,7 @@ export interface BusMessage {
 }
 
 export interface SessionRecord {
+  provider?: 'claude' | 'copilot';
   sessionId?: string;
   model?: string;
   turns: number;
@@ -57,6 +58,7 @@ export interface StateData {
   sessions: Record<string, SessionRecord>;
   worktreeMeta: Record<string, WorktreeMeta>; // key: `${repoId}/${worktreeId}`
   permissionRules: Record<string, string[]>; // agentId -> rule keys always allowed
+  toolReceipts?: Record<string, { input: string; result: { content: Array<{ type: 'text'; text: string }>; isError?: boolean } }>;
   /** opaque backend-owned state (e.g. sim progress) */
   backend: Record<string, unknown>;
 }

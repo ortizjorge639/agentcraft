@@ -321,6 +321,9 @@ public final class ConsoleActions {
 		if (spend != null) {
 			ConsoleLog.add(Tone.INFO, "Claude spend so far: " + spend + " (estimated, this profile)");
 		}
+		if (s.status() != null && s.status().backend() == dev.agentcraft.client.foreman.Protocol.BackendName.COPILOT) {
+			ConsoleLog.add(Tone.INFO, "Copilot usage cost unavailable; see your GitHub Copilot usage");
+		}
 		for (Agent a : s.agents().values()) {
 			String st = !a.isActive() ? "off shift" : a.isPaused() ? "paused" : a.state().wire().replace('_', ' ');
 			ConsoleLog.add(Tone.INFO, a.name() + " \u00b7 " + st + (a.activity().isEmpty() ? "" : " \u00b7 " + a.activity()) + (a.taskId() != null ? " ("
@@ -339,7 +342,7 @@ public final class ConsoleActions {
 	/** "$2.46" for the claude backend once something was spent, else null. */
 	static @Nullable String spendLabel(ForemanState s) {
 		var st = s.status();
-		if (st == null || st.costUsd() == null || st.costUsd() <= 0) {
+		if (st == null || st.backend() != dev.agentcraft.client.foreman.Protocol.BackendName.CLAUDE || st.costUsd() == null || st.costUsd() <= 0) {
 			return null;
 		}
 		return String.format(java.util.Locale.ROOT, "$%.2f", st.costUsd());

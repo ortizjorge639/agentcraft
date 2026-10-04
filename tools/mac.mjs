@@ -21,7 +21,7 @@ const runFile = (kind, profile) => path.join(runDir, `mac-${kind}-${profile}.jso
 
 function usage(code = 0) {
   console.log(`AgentCraft macOS launcher
-  node tools/mac.mjs launch [--backend sim|claude] [--repo PATH] [--use-claude-login]
+  node tools/mac.mjs launch [--backend sim|claude|copilot] [--repo PATH] [--use-claude-login]
                             [--home PATH] [--profile NAME] [--port N] [--dev-port N]
                             [--dev] [--showcase busy|late] [--reset]
                             [--no-game] [--no-foreman] [--no-wait]
@@ -57,7 +57,8 @@ function options(argv) {
     out.backend = 'sim';
     out.profile ??= out.showcase === 'late' ? 'showcase-late' : 'showcase';
   }
-  if (!['sim', 'claude'].includes(out.backend)) throw new Error('backend must be sim or claude');
+  if (!['sim', 'claude', 'copilot'].includes(out.backend)) throw new Error('backend must be sim, claude or copilot');
+  if (out.backend === 'copilot' && out['use-claude-login']) throw new Error('--use-claude-login is only supported by Claude');
   out.profile ??= out.backend;
   if (!/^[\w-]+$/.test(out.profile)) throw new Error('profile must contain only letters, digits, _ or -');
   out.home = path.resolve(out.home ?? process.env.AGENTCRAFT_HOME ?? path.join(os.homedir(), '.agentcraft'));
@@ -168,7 +169,8 @@ function prepareAudio(dev) {
 
 async function launch(opt, summary) {
   if (process.platform !== 'darwin') throw new Error('tools/mac.mjs is for macOS');
-  if (Number(process.versions.node.split('.')[0]) < 22) throw new Error('Node 22+ is required');
+  const [major, minor] = process.versions.node.split('.').map(Number);
+  if (major < 22 || (major === 22 && minor < 18)) throw new Error('Node 22.18+ is required');
   fs.mkdirSync(runDir, { recursive: true });
   fs.mkdirSync(logDir, { recursive: true });
   if (!opt['no-game']) javaHome();
@@ -184,7 +186,7 @@ async function launch(opt, summary) {
       fmPort = fm.port;
       summary.foreman.port = fmPort;
       console.log(`Reusing Foreman ${fm.pid} on :${fmPort}`);
-      if (fm.backend !== opt.backend) console.warn(`Foreman is already using backend ${fm.backend}`);
+      if (fm.backend !== opt.backend) throw new Error(`profile ${opt.profile} is already using backend ${fm.backend}; stop it before switching to ${opt.backend}`);
       for (const repo of opt.repo) console.log(runCli('foremancli.mjs', ['repo-add', repo, '--port', String(fmPort)]));
     } else {
       if (await portOpen(fmPort)) throw new Error(`port ${fmPort} is already in use`);

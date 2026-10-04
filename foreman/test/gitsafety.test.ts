@@ -12,7 +12,7 @@ let root: string;
 let remote: string;
 let work: string;
 
-const refs = async () => (await gitOut(remote, ['for-each-ref', '--format=%(refname)'])).split('\n').filter(Boolean);
+const refs = async () => (await gitOut(remote, ['--git-dir', remote, 'for-each-ref', '--format=%(refname)'])).split('\n').filter(Boolean);
 const sh = (cmd: string, env?: NodeJS.ProcessEnv) => runShell(cmd, { cwd: work, env: env ?? withGitSafety(process.env), timeoutMs: 60_000 });
 
 beforeAll(async () => {

@@ -23,7 +23,7 @@
 #>
 [CmdletBinding(PositionalBinding = $false)]
 param(
-    [ValidateSet('sim', 'claude')][string]$Backend,
+    [ValidateSet('sim', 'claude', 'copilot')][string]$Backend,
     [string[]]$Repo,
     [Alias('Profile')][string]$ForemanProfile,
     # -Showcase [busy|late]: a switch with an optional positional value
@@ -85,6 +85,7 @@ if ($showcaseOn) {
     if (-not $ShowcaseAt) { $ShowcaseAt = 'busy' }
 }
 if (-not $Backend) { if ($env:AGENTCRAFT_BACKEND) { $Backend = $env:AGENTCRAFT_BACKEND } else { $Backend = 'claude' } }
+if ($Backend -eq 'copilot' -and $UseClaudeLogin) { Fail '-UseClaudeLogin is only supported by Claude' }
 if (-not $ForemanProfile) {
     if ($showcaseOn) { if ($ShowcaseAt -eq 'late') { $ForemanProfile = 'showcase-late' } else { $ForemanProfile = 'showcase' } }
     else { $ForemanProfile = $Backend }
@@ -126,9 +127,10 @@ Write-Kv 'home' "$AgentHome  (profile $ForemanProfile)"
 # --- prerequisites -------------------------------------------------------------------------------
 
 $node = Get-Command node -ErrorAction SilentlyContinue
-if (-not $node) { Fail 'Node.js 22+ is required (https://nodejs.org). `node` is not on PATH.' }
+if (-not $node) { Fail 'Node.js 22.18+ is required (https://nodejs.org). `node` is not on PATH.' }
 $nodeVer = (& $node.Source --version).Trim()
-if ([int]($nodeVer.TrimStart('v').Split('.')[0]) -lt 22) { Fail "Node.js 22+ is required (found $nodeVer)" }
+$nodeParts = $nodeVer.TrimStart('v').Split('.')
+if ([int]$nodeParts[0] -lt 22 -or ([int]$nodeParts[0] -eq 22 -and [int]$nodeParts[1] -lt 18)) { Fail "Node.js 22.18+ is required (found $nodeVer)" }
 
 # npm dependencies: installed when node_modules is missing (first run) or older than the lockfile
 # (after a pull that changed dependencies). Never while something of ours may be using them.
@@ -172,7 +174,7 @@ if ($live) {
     if (-not $startedByUs) { $by = 'not started by launch.ps1; stop.ps1 leaves it alone' }
     Write-Kv 'reusing' "pid $($live.pid)  ws://127.0.0.1:$fmPort  backend $($live.backend)  ($by)" 'Green'
     if ($portGiven -and $fmPort -ne $Port) { Write-Warn2 "-Port $Port ignored: profile '$ForemanProfile' is already served on $fmPort" }
-    if ($live.backend -and $live.backend -ne $Backend) { Write-Warn2 "profile '$ForemanProfile' runs the $($live.backend) backend (asked for $Backend); stop it first to switch" }
+    if ($live.backend -and $live.backend -ne $Backend) { Fail "profile '$ForemanProfile' runs the $($live.backend) backend (asked for $Backend); stop it first to switch" }
     if ($Reset -or $showcaseOn -or $repoPaths.Count) {
         if ($Reset) { Write-Warn2 '-Reset ignored for a running Foreman (tools\stop.ps1 -Foreman first)' }
         foreach ($rp in $repoPaths) {

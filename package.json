@@ -1,0 +1,9 @@
+{
+  "name": "agentcraft",
+  "private": true,
+  "scripts": {
+    "test": "npm run check --prefix foreman && npm test --prefix tools",
+    "check": "npm test",
+    "test:sdk": "npm run test:sdk --prefix foreman"
+  }
+}

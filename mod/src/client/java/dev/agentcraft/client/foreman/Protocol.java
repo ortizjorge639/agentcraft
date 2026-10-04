@@ -87,7 +87,7 @@ public final class Protocol {
 	}
 
 	public enum BackendName implements Wire {
-		SIM, CLAUDE, UNKNOWN
+		SIM, CLAUDE, COPILOT, UNKNOWN
 	}
 
 	public enum AuthStatus implements Wire {

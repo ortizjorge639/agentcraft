@@ -2,13 +2,14 @@
 
 ## macOS
 
-Requires Node 22+, git, and Java 25. Install Java with `brew install openjdk@25`;
+Requires Node 22.18+, git, and Java 25. Install Java with `brew install openjdk@25`;
 `mac.mjs` uses Homebrew's JDK directly, so no system Java changes are needed.
 
 ```sh
 node tools/mac.mjs launch --backend sim             # free simulated team
 node tools/mac.mjs stop --profile sim
 node tools/mac.mjs launch --repo /path/to/repo --use-claude-login
+node tools/mac.mjs launch --backend copilot --repo /path/to/repo
 node tools/mac.mjs stop                            # save/quit game, stop Foreman
 ```
 
@@ -23,7 +24,7 @@ The screenshot QA command, `node tools/qa.mjs`, also uses this launcher on macOS
 
 ## Windows
 
-Windows PowerShell 5.1+ and Node 22. `launch.ps1` installs the npm dependencies it needs on the
+Windows PowerShell 5.1+ and Node 22.18+. `launch.ps1` installs the npm dependencies it needs on the
 first run (`npm ci` in `foreman/` and `tools/`); the Gradle wrapper downloads Gradle, Minecraft
 and Fabric by itself. Java 25 must be installed (Temurin 25: https://adoptium.net).
 
@@ -33,6 +34,7 @@ and Fabric by itself. Java 25 must be installed (Temurin 25: https://adoptium.ne
 tools\launch.ps1                              # claude backend, state in ~/.agentcraft, Foreman :7878, DevBridge :7879
 tools\launch.ps1 -Repo C:\code\life-tracker   # also register a repo with the Foreman
 tools\launch.ps1 -Backend sim                 # scripted demo team (no API calls), demo repo in sandbox/
+tools\launch.ps1 -Backend copilot -Repo C:\code\my-repo  # experimental; authenticate Copilot first
 tools\launch.ps1 -Showcase                    # static showcase state (sim); -Showcase late for the later one
 tools\stop.ps1                                # stop what launch.ps1 started (game + Foreman)
 tools\stop.ps1 -Game                          # just the game: agents keep working, relaunch any time
@@ -54,7 +56,7 @@ If the game of this checkout is already running it is reused (one client per che
 
 | parameter | default | |
 | --- | --- | --- |
-| `-Backend sim\|claude` | `claude` (`AGENTCRAFT_BACKEND`) | `-Showcase` implies `sim` |
+| `-Backend sim\|claude\|copilot` | `claude` (`AGENTCRAFT_BACKEND`) | `-Showcase` implies `sim` |
 | `-Repo <path>[,<path>]` | | registered at start, or sent as `repo.add` to a running Foreman |
 | `-Profile <name>` | backend name; `showcase` / `showcase-late` | state lives in `<home>/<profile>` |
 | `-Showcase [busy\|late]` | | hold a static scripted state (QA screenshots); always a fresh (`--reset`) profile |
@@ -79,6 +81,13 @@ its state and releases `foreman.json`, like Ctrl+C in a terminal), then, after `
 start is left alone. `-Game` / `-Foreman` / `-Profile` / `-Home` / `-Port` narrow it down;
 `-FromSummary <launch summary>` stops exactly what one launch started; `-StopDaemon` also stops
 this checkout's Gradle daemon (never another checkout's).
+
+Copilot uses the SDK's bundled local runtime and a `copilot` profile, not the Claude login.
+Authenticate with `copilot /login` or `COPILOT_GITHUB_TOKEN`; model requests can consume account
+usage. Both launchers refuse reusing a profile with a different backend. Use `--foreman-arg`
+on macOS / `-ForemanArgs` on Windows for `--ci`, `--model` and worker/concurrency limits.
+The launchers start the matching Fabric development client, not an arbitrary installed vanilla
+Minecraft instance. Native Windows Copilot launch and in-game behavior remain acceptance checks.
 
 ## Dev / QA tools
 

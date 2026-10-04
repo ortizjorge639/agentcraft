@@ -32,7 +32,7 @@ import { setUserName, userName } from './user.js';
 import { truncate } from './util/text.js';
 
 export interface Backend {
-  readonly name: 'sim' | 'claude';
+  readonly name: 'sim' | 'claude' | 'copilot';
   /** Called once after the core is ready (and after restart: resume work). */
   start(): Promise<void>;
   stop(): Promise<void>;
@@ -390,6 +390,14 @@ export class Foreman {
     const option = d.answer?.option;
     if (option === 'Merge') {
       try {
+        if (this.config.backend === 'copilot' && (!task || task.ci !== 'pass' || !d.repoId || !d.worktree ||
+            task.repoId !== d.repoId || task.worktree !== d.worktree)) {
+          throw new RepoError('Copilot merges require executed passing tests', 'refused');
+        }
+        if (this.config.backend === 'copilot' && task && d.repoId && d.worktree &&
+            task.ciRevision !== await this.repos.verificationRevision(d.repoId, d.worktree)) {
+          throw new RepoError('Worktree changed since verification; retry the task and rerun tests before merging', 'refused');
+        }
         const res = await this.repos.merge(d, task ? { commitMessage: `${task.id}: ${task.title}${task.summary ? `\n\n${task.summary}` : ''}` } : {});
         if (task) this.tasks.setStatus(task.id, 'done', { viaMerge: true, force: task.status !== 'review' });
         this.bus.feed('merge', `Merged ${res.branch} into ${res.base} (${res.sha}, ${res.files} file${res.files === 1 ? '' : 's'})`, { agentId: d.agentId });

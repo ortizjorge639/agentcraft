@@ -2,15 +2,15 @@
 
 # AgentCraft
 
-**A team of Claude agents doing real work on your code, inside a Minecraft studio you can walk around in.**
+**A coding-agent team working on your code, inside a Minecraft studio you can walk around in.**
 
-*Powered by Claude*
+*Claude, plus an experimental GitHub Copilot backend*
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-c9a227)](LICENSE)
 [![Minecraft 26.3](https://img.shields.io/badge/Minecraft-26.3-8fa98b)](https://www.minecraft.net)
 [![Fabric](https://img.shields.io/badge/mod%20loader-Fabric-d97757)](https://fabricmc.net)
 [![Claude Agent SDK](https://img.shields.io/badge/agents-Claude%20Agent%20SDK-2fa3a0)](https://code.claude.com/docs/en/agent-sdk/overview)
-[![Tests](https://img.shields.io/badge/tests-482%20passing-3b2a20)](foreman/test)
+[![Checks](https://img.shields.io/badge/checks-local%20verification-3b2a20)](foreman/test)
 
 <img src="docs/img/readme/hero.jpg" alt="The AgentCraft HQ at golden hour" width="100%">
 
@@ -27,6 +27,47 @@ you with a question. When work is ready, you review the real diff and press **Me
 touches your branch without that click, and nothing is ever pushed.
 
 Close the game and the agents keep working. Open it again and the studio catches up.
+
+## GitHub Copilot (experimental)
+
+Run the Foreman, its owned Copilot CLI runtime, and Minecraft **on the same Mac or Windows PC**.
+Copilot inference is hosted remotely; the PC's GPU renders Minecraft, not the coding model.
+Integration uses `@github/copilot-sdk` **1.0.16**, with its bundled CLI **1.0.90**. Node **22.18+**,
+Git, Java 25, and an authenticated account entitled to Copilot are required. Authenticate using
+`copilot /login` or `COPILOT_GITHUB_TOKEN` before launching.
+
+```sh
+# macOS (launches the matching Fabric development client)
+node tools/mac.mjs launch --backend copilot --repo /path/to/repo
+# Foreman only; the same npm command works on Windows with a Windows repo path
+npm run start --prefix foreman -- --backend copilot --repo /path/to/repo --ci "npm test"
+```
+
+```powershell
+# Windows PowerShell
+tools\launch.ps1 -Backend copilot -Repo C:\code\my-repo
+```
+
+Claude remains the default. Copilot uses a separate `copilot` state profile; never mix providers
+in one profile. Start with one worker (`--workers kit --max-concurrent 1`) on a trusted disposable
+repo. Choose `--model <id>` if needed; otherwise the runtime chooses its default.
+
+Host-validated tools preserve worktrees, task dependencies, questions, permissions and explicit
+human merges. Copilot refuses missing/failing tests and approvals for a worktree changed since
+verification. Configure a real test command with `--ci` when detection is insufficient.
+Usage is **not** reported as a fabricated USD cost; Claude effort/login/USD-budget flags do not
+apply. Git guards and policy checks are not an OS sandbox for hostile repository code.
+
+**Evidence boundary:** local deterministic tests, real SDK host-tool transport and a macOS mod
+build passed. One live Mac canary also passed: actual code/tests, pause/resume, a Foreman-instance
+restart while awaiting a question, lead review and an approved merge through the real WebSocket
+protocol. The Minecraft interaction, native Windows acceptance and repeated reliability canaries
+remain unverified. The screenshots below demonstrate the upstream **Claude** backend, not Copilot.
+
+From a fresh checkout, run `npm ci --prefix foreman` and `npm ci --prefix tools`, then
+`npm run check`. `npm run test:sdk` is an opt-in real-runtime contract test that executes no model
+request. Mod build: `cd mod` then `./gradlew --no-daemon build` (`.\gradlew.bat` on Windows).
+The checked-in CI matrix is a proposed platform gate, not evidence that those jobs have run.
 
 <br>
 
