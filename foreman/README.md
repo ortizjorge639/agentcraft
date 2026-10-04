@@ -146,9 +146,12 @@ Observed local evidence for this implementation (macOS, Node 26.7.0):
 | `npm run test:sdk` | 1 real SDK/runtime host-tool contract test passed, no model request |
 | Production `CopilotRuntime.checkAuth()` | Bundled CLI 1.0.90, protocol 3, authenticated metadata preflight passed |
 | Java 25 `gradlew --no-daemon build` | Mod built; no Java test sources exist |
-| macOS/Windows/Linux CI matrix | Added locally; not executed on GitHub |
+| macOS/Windows/Linux CI matrix | Native Node 22.18/24 tests and Java 25 builds; see the fork's Check workflow for current results |
 | Live Mac canary (2026-10-03 local time) | One goal/worker passed: real edits, 14 repo tests, independent feature oracle, pause/resume, restart at a question, lead review and approved merge over WebSocket |
 | Game UI and native Windows acceptance | Not executed; experimental readiness only |
+
+CI: [Check workflow](https://github.com/ortizjorge639/agentcraft/actions/workflows/check.yml).
+Native automated jobs do not replace a live Copilot/Minecraft canary on the Windows PC.
 
 The live goal added `renameNote` and focused tests to the zero-dependency pocket-notes sandbox.
 Both source content and base HEAD stayed unchanged until the QA client explicitly approved the

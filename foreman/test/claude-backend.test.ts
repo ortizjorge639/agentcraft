@@ -171,7 +171,8 @@ describe('claude backend orchestration (fake SDK)', () => {
     expect(kitLog.some((l) => l.includes('Alex denied'))).toBe(true);
     // workers never ran in the user checkout; the lead did (read-only)
     expect(calls.filter((c) => /Your task/.test(c.prompt)).every((c) => c.cwd.includes(path.join('worktrees', 'demo-app')))).toBe(true);
-    expect(fs.realpathSync(calls.find((c) => c.prompt.startsWith('New goal'))!.cwd)).toBe(fs.realpathSync(repoPath));
+    // Native canonicalization expands Windows TEMP's 8.3 aliases like RUNNER~1.
+    expect(fs.realpathSync.native(calls.find((c) => c.prompt.startsWith('New goal'))!.cwd)).toBe(fs.realpathSync.native(repoPath));
 
     // each agent's CLI env: its own git identity, no signing, git cannot walk up out of its cwd
     const kitTurn = calls.find((c) => /Your task/.test(c.prompt) && c.cwd.includes('kit-'))!;
