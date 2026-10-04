@@ -30,6 +30,10 @@ Close the game and the agents keep working. Open it again and the studio catches
 
 ## GitHub Copilot (experimental)
 
+**Windows pickup:** clone the fork's `copilot-backend` branch and follow
+[the Windows handoff](docs/WINDOWS-HANDOFF.md). A development Copilot assistant
+starting at the repository root can discover that guide through [AGENTS.md](AGENTS.md).
+
 Run the Foreman, its owned Copilot CLI runtime, and Minecraft **on the same Mac or Windows PC**.
 Copilot inference is hosted remotely; the PC's GPU renders Minecraft, not the coding model.
 Integration uses `@github/copilot-sdk` **1.0.16**, with its bundled CLI **1.0.90**. Node **22.18+**,
@@ -67,7 +71,9 @@ remain unverified. The screenshots below demonstrate the upstream **Claude** bac
 From a fresh checkout, run `npm ci --prefix foreman` and `npm ci --prefix tools`, then
 `npm run check`. `npm run test:sdk` is an opt-in real-runtime contract test that executes no model
 request. Mod build: `cd mod` then `./gradlew --no-daemon build` (`.\gradlew.bat` on Windows).
-The checked-in CI matrix is a proposed platform gate, not evidence that those jobs have run.
+All nine native CI jobs passed for implementation commit `ca4fee6`:
+[Windows/macOS/Linux Node checks and Java 25 builds](https://github.com/ortizjorge639/agentcraft/actions/runs/37168544313).
+Those automated checks do not establish live Windows Copilot/Minecraft acceptance.
 
 <br>
 
